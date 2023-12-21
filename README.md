@@ -92,33 +92,6 @@ var request = PublicPayRequest(
 
 ```
 Future<BaseResponse<PublicPayResponse>> _pay() async {
- var request = PublicPayRequest(
-      orderId: "SAM_SDK_3",
-      description: "test payment",
-      paymentMethod: PaymentMethod.cryptogram,
-      amount: '10',
-      currency: 'RUB',
-      cardDetails:  CardDetails(
-          cardHolderName: "TEST CARD",
-          cardNumber: "5260111696757102", //success card
-          //     cardNumber: '2408684917843810',     //fail card
-          cvc: "123",
-          expMonth: "12",
-          expYear: "24"),
-      customerInfo: CustomerInfo(
-          email: "user@example.com",
-          phone: "+19991231212",
-          language: "en",
-          address: "string",
-          town: "string",
-          zip: "string",
-          country: "USA",
-          isSendReceipt: false,
-          receiptEmail: 'paaa@mail.ru',
-          ip: '8.8.8.8'),
-      rebillFlag: false,
-    );
-
     final response = await config.pay(request);
 
     return response;
