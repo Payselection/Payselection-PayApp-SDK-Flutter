@@ -4,7 +4,6 @@ sealed class PaySelectionConfig {
   factory PaySelectionConfig.credential({
     required String publicKey,
     required String xSiteId,
-    required String xRequestId,
     required bool isDebug,
     BaseLogger logger,
   }) = PaySelectionConfigCredential;
@@ -23,17 +22,15 @@ sealed class PaySelectionConfig {
 class PaySelectionConfigCredential extends PaySelectionConfig {
   const PaySelectionConfigCredential(
       {required this.publicKey,
-      required this.xSiteId,
-      required this.xRequestId,
-      bool isDebug = true,
-      BaseLogger logger = const Logger()})
+        required this.xSiteId,
+        bool isDebug = true,
+        BaseLogger logger = const Logger()})
       : super._(
-            isDebug: isDebug,
-            logger: logger);
+      isDebug: isDebug,
+      logger: logger);
 
   final String publicKey;
 
   final String xSiteId;
 
-  final String xRequestId;
 }

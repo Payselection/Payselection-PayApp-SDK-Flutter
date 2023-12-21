@@ -22,9 +22,9 @@ class NetworkClient {
 
     final requestBody = jsonEncode(_modifyRequest(request, config));
 
-    var requestId = const Uuid();
+    var requestId = const Uuid().v4();
     final settings = NetworkSettings(
-        siteId: _siteId(config), reqId: requestId.v4());
+        siteId: _siteId(config), reqId: requestId);
 
     late Map<String, String> headers;
 
@@ -36,18 +36,18 @@ class NetworkClient {
         headers = {
           'X-REQUEST-AUTH': 'public',
           'X-SITE-ID': _siteId(config),
-          'X-REQUEST-ID': _reqId(config),
-          'X-REQUEST-SIGNATURE': _generateSignature(request) ?? ''
+          'X-REQUEST-ID': requestId,
+          'X-REQUEST-SIGNATURE': _generateSignature(request, requestId) ?? ''
         };
         rawResponse = await http.get(url, headers: headers);
       } else {
         headers = settings.baseHeaders();
         rawResponse = await http
             .post(
-              url,
-              headers: headers,
-              body: requestBody,
-            )
+          url,
+          headers: headers,
+          body: requestBody,
+        )
             .timeout(NetworkSettings.timeout);
       }
       if (config.isDebug) {
@@ -76,9 +76,9 @@ class NetworkClient {
   }
 
   Map<String, dynamic> _modifyRequest(
-    PaySelectionRequest request,
-    PaySelectionConfig config,
-  ) {
+      PaySelectionRequest request,
+      PaySelectionConfig config,
+      ) {
     switch (config) {
       case PaySelectionConfigCredential():
         return request.toJson(config.publicKey);
@@ -92,21 +92,15 @@ class NetworkClient {
     }
   }
 
-  String _reqId(PaySelectionConfig config) {
-    switch (config) {
-      case PaySelectionConfigCredential():
-        return config.xRequestId;
-    }
-  }
 
-  String? _generateSignature(PaySelectionRequest request) {
+  String? _generateSignature(PaySelectionRequest request, String xReqId) {
     if (request is TransactionStatusRequest) {
       final config = _config as PaySelectionConfigCredential;
       final value =
           '${request.httpMethod}\n'
           '${request.apiMethodPath}\n'
           '${config.xSiteId}\n'
-          '${config.xRequestId}\n';
+          '$xReqId\n';
 
       final keyBytes = utf8.encode(request.transactionSecretKey);
       final key = KeyParameter(Uint8List.fromList(keyBytes));
