@@ -81,7 +81,7 @@ class NetworkClient {
       ) {
     switch (config) {
       case PaySelectionConfigCredential():
-        return request.toJson(config.publicKey);
+        return request.toJson(config.publicKey, config.publicRsaKey);
     }
   }
 

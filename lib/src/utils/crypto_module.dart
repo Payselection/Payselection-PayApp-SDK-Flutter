@@ -1,14 +1,16 @@
-import 'dart:math';
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
+
 import 'package:convert/convert.dart';
-import "package:pointycastle/export.dart";
+import 'package:encrypt/encrypt.dart' as encryptDart;
+import 'package:pointycastle/export.dart' as pointycastle;
 
 class Encryption {
-  final ECCurve_secp256k1 _ecCurve = ECCurve_secp256k1();
+  final pointycastle.ECCurve_secp256k1 _ecCurve = pointycastle.ECCurve_secp256k1();
 
-  late final AsymmetricKeyPair _keyPair;
-  late final ECDomainParameters _domainParameters;
+  late final pointycastle.AsymmetricKeyPair _keyPair;
+  late final pointycastle.ECDomainParameters _domainParameters;
 
   Uint8List randomIv(int blockSize) {
     final random = Random.secure();
@@ -19,20 +21,20 @@ class Encryption {
     return iv;
   }
 
-  Uint8List? derivePublicKey(ECPrivateKey pKey) {
+  Uint8List? derivePublicKey(pointycastle.ECPrivateKey pKey) {
     final bigIntD = BigInt.parse(pKey.d.toString());
     final point = _ecCurve.G * bigIntD;
     return point?.getEncoded(false);
   }
 
-  SecureRandom getSecureRandom() {
-    var secureRandom = FortunaRandom();
+  pointycastle.SecureRandom getSecureRandom() {
+    var secureRandom = pointycastle.FortunaRandom();
     var random = Random.secure();
     List<int> seeds = [];
     for (int i = 0; i < 32; i++) {
       seeds.add(random.nextInt(255));
     }
-    secureRandom.seed(KeyParameter(Uint8List.fromList(seeds)));
+    secureRandom.seed(pointycastle.KeyParameter(Uint8List.fromList(seeds)));
     return secureRandom;
   }
 
@@ -49,68 +51,61 @@ class Encryption {
   }
 
   Uint8List deriveSharedKey(
-      ECPrivateKey privateKey, ECPublicKey remotePublicKey) {
-    final agreement = ECDHBasicAgreement();
+      pointycastle.ECPrivateKey privateKey, pointycastle.ECPublicKey remotePublicKey) {
+    final agreement = pointycastle.ECDHBasicAgreement();
     agreement.init(privateKey);
     final sharedKey = agreement.calculateAgreement(remotePublicKey);
-    final digit2 =
-        SHA512Digest().process(bigIntToUint8List(sharedKey));
+    final digit2 = pointycastle.SHA512Digest().process(bigIntToUint8List(sharedKey));
     return Uint8List.fromList(digit2);
   }
 
-  ECPrivateKey randomEphemeralKey() {
-    var ecParams = ECKeyGeneratorParameters(_domainParameters);
-    var params = ParametersWithRandom<ECKeyGeneratorParameters>(
+  pointycastle.ECPrivateKey randomEphemeralKey() {
+    var ecParams = pointycastle.ECKeyGeneratorParameters(_domainParameters);
+    var params = pointycastle.ParametersWithRandom<pointycastle.ECKeyGeneratorParameters>(
         ecParams, getSecureRandom());
-    var keyGenerator = ECKeyGenerator();
+    var keyGenerator = pointycastle.ECKeyGenerator();
     keyGenerator.init(params);
     _keyPair = keyGenerator.generateKeyPair();
-    return _keyPair.privateKey as ECPrivateKey;
+    return _keyPair.privateKey as pointycastle.ECPrivateKey;
   }
 
-  ECPublicKey getPublicKey(String pKey) {
-    _domainParameters = ECDomainParameters(_ecCurve.domainName);
+  pointycastle.ECPublicKey getPublicKey(String pKey) {
+    _domainParameters = pointycastle.ECDomainParameters(_ecCurve.domainName);
     final point = _ecCurve.curve.decodePoint(hex.decode(pKey));
-    return ECPublicKey(point, _domainParameters);
+    return pointycastle.ECPublicKey(point, _domainParameters);
   }
 
-  Uint8List hmacSha256(Uint8List hmacKey, Uint8List iv,
-      Uint8List pKey, Uint8List data) {
-    final hmac = HMac(SHA256Digest(), 64);
-    final keyParam = KeyParameter(hmacKey);
+  Uint8List hmacSha256(
+      Uint8List hmacKey, Uint8List iv, Uint8List pKey, Uint8List data) {
+    final hmac = pointycastle.HMac(pointycastle.SHA256Digest(), 64);
+    final keyParam = pointycastle.KeyParameter(hmacKey);
     hmac.init(keyParam);
     var macData = iv + pKey + data;
     return hmac.process(Uint8List.fromList(macData));
   }
 
   EncryptedData encrypt(String data, String pKey) {
-    final cbcCipher = CBCBlockCipher(AESEngine());
+    final cbcCipher = pointycastle.CBCBlockCipher(pointycastle.AESEngine());
     final publicKey = getPublicKey(pKey);
 
     final ephemeralPrivateKey = randomEphemeralKey();
     final ephemeralPublicKey = derivePublicKey(ephemeralPrivateKey);
-    final sharedKeyHash =
-        deriveSharedKey(ephemeralPrivateKey, publicKey);
+    final sharedKeyHash = deriveSharedKey(ephemeralPrivateKey, publicKey);
     final iv = randomIv(cbcCipher.blockSize);
-    final paddingParams = PaddedBlockCipherParameters<
-        ParametersWithIV<KeyParameter>, Null>(
-      ParametersWithIV(
-          KeyParameter(sharedKeyHash.sublist(0, 32)), iv),
+    final paddingParams =
+    pointycastle.PaddedBlockCipherParameters<pointycastle.ParametersWithIV<pointycastle.KeyParameter>, Null>(
+      pointycastle.ParametersWithIV(pointycastle.KeyParameter(sharedKeyHash.sublist(0, 32)), iv),
       null,
     );
-    final paddedCipher =
-        PaddedBlockCipherImpl(PKCS7Padding(), cbcCipher)
-          ..init(true, paddingParams);
+    final paddedCipher = pointycastle.PaddedBlockCipherImpl(pointycastle.PKCS7Padding(), cbcCipher)
+      ..init(true, paddingParams);
     try {
       final encryptedData =
           paddedCipher.process(Uint8List.fromList(utf8.encode(data)));
       final mac = hmacSha256(sharedKeyHash.sublist(32, 64), iv,
           ephemeralPublicKey!, encryptedData);
       return EncryptedData(
-          encrypted: encryptedData,
-          key: ephemeralPublicKey,
-          iv: iv,
-          tag: mac);
+          encrypted: encryptedData, key: ephemeralPublicKey, iv: iv, tag: mac);
     } catch (e) {
       print(e);
       return EncryptedData(
@@ -134,8 +129,50 @@ class Encryption {
 
     return base64Encode(jsonEncode(sendData).codeUnits);
   }
-}
 
+  String createCryptogramRsa(String paymentData, String key) {
+    String pemString = utf8.decode(base64.decode(key));
+    // Create RSA public key
+    var keyParser = encryptDart.RSAKeyParser();
+    pointycastle.RSAPublicKey publicKey =
+        keyParser.parse(pemString) as pointycastle.RSAPublicKey;
+    // Encrypt the data
+    var encryptor = pointycastle.OAEPEncoding.withSHA256(pointycastle.RSAEngine())
+      ..init(true, pointycastle.PublicKeyParameter<pointycastle.RSAPublicKey>(publicKey));
+
+    return base64Encode(
+      _processInBlocks(
+        encryptor,
+        Uint8List.fromList(paymentData.codeUnits),
+      ),
+    );
+  }
+
+  Uint8List _processInBlocks(pointycastle.AsymmetricBlockCipher engine, Uint8List input) {
+    final numBlocks = input.length ~/ engine.inputBlockSize +
+        ((input.length % engine.inputBlockSize != 0) ? 1 : 0);
+
+    final output = Uint8List(numBlocks * engine.outputBlockSize);
+
+    var inputOffset = 0;
+    var outputOffset = 0;
+    while (inputOffset < input.length) {
+      final chunkSize = (inputOffset + engine.inputBlockSize <= input.length)
+          ? engine.inputBlockSize
+          : input.length - inputOffset;
+
+      outputOffset += engine.processBlock(
+          input, inputOffset, chunkSize, output, outputOffset);
+
+      inputOffset += chunkSize;
+    }
+
+    return (output.length == outputOffset)
+        ? output
+        : output.sublist(0, outputOffset);
+  }
+
+}
 
 class EncryptedData {
   final Uint8List encrypted;
@@ -145,8 +182,7 @@ class EncryptedData {
 
   const EncryptedData(
       {required this.encrypted,
-        required this.key,
-        required this.iv,
-        required this.tag});
+      required this.key,
+      required this.iv,
+      required this.tag});
 }
-

@@ -32,26 +32,49 @@ class PublicPayRequest extends PaySelectionRequest {
       this.payToken});
 
   @override
-  Map<String, dynamic> toJson(String pKey) => {
+  Map<String, dynamic> toJson(
+    String pKey,
+    String pKeyRsa,
+  ) =>
+      {
         'OrderId': orderId,
         'Description': description,
         'Amount': amount,
         'Currency': currency,
         "PaymentMethod": resolvePaymentMethod(paymentMethod),
-        if (paymentMethod == PaymentMethod.cryptogram &&
-            cardDetails != null)
+        if (paymentMethod == PaymentMethod.cryptogram && cardDetails != null)
           'PaymentDetails': PaymentDetailsCryptogram(
-                  value: createCryptogram(
-                      PaymentData(
-                          cardDetails: cardDetails!,
-                          messageExpiration: messageExpiration(),
-                          transactionDetails: TransactionDetails(
-                              amount: amount, currency: currency)),
-                      pKey))
-              .toJson()
+            value: createCryptogram(
+              PaymentData(
+                cardDetails: cardDetails!,
+                messageExpiration: messageExpiration(),
+                transactionDetails: TransactionDetails(
+                  amount: amount,
+                  currency: currency,
+                ),
+              ),
+              pKey,
+            ),
+          ).toJson()
+        else if (paymentMethod == PaymentMethod.cryptogramRSA  && cardDetails != null)
+          'PaymentDetails': PaymentDetailsCryptogramRSA(
+            value: createCryptogramRsa(
+              PaymentData(
+                cardDetails: cardDetails!,
+                messageExpiration: messageExpiration(),
+                transactionDetails: TransactionDetails(
+                  amount: amount,
+                  currency: currency,
+                ),
+              ),
+              pKeyRsa,
+            ),
+          ).toJson()
         else if (paymentMethod == PaymentMethod.token)
-          'PaymentDetails':
-              PaymentDetailsToken(type: 'Yandex', payToken: payToken),
+          'PaymentDetails': PaymentDetailsToken(
+            type: 'Yandex',
+            payToken: payToken,
+          ),
         'CustomerInfo': customerInfo.toJson(),
         if (extraData != null) "ExtraData": extraData?.toJson(),
         'rebillFlag': rebillFlag,
@@ -59,8 +82,17 @@ class PublicPayRequest extends PaySelectionRequest {
       };
 
   String createCryptogram(PaymentData data, String publicKey) {
-    return Encryption()
-        .createCryptogram(jsonEncode(data).toString(), publicKey);
+    return Encryption().createCryptogram(
+      jsonEncode(data).toString(),
+      publicKey,
+    );
+  }
+
+  String createCryptogramRsa(PaymentData data, String publicKeyRsa) {
+    return Encryption().createCryptogramRsa(
+      jsonEncode(data).toString(),
+      publicKeyRsa,
+    );
   }
 
   int messageExpiration() {
@@ -78,6 +110,12 @@ class PublicPayRequest extends PaySelectionRequest {
         return 'QR';
       case PaymentMethod.token:
         return 'Token';
+      case PaymentMethod.sberPay:
+        return 'SberPay';
+      case PaymentMethod.externalForm:
+        return 'ExternalForm';
+      case PaymentMethod.cryptogramRSA:
+        return 'CryptogramRSA';
     }
   }
 
@@ -91,22 +129,50 @@ class PublicPayRequest extends PaySelectionRequest {
 class PaymentDetailsCryptogram {
   String value;
 
-  PaymentDetailsCryptogram({required this.value});
+  PaymentDetailsCryptogram({
+    required this.value,
+  });
 
-  Map<String, dynamic> toJson() => {'Value': value};
+  Map<String, dynamic> toJson() => {
+        'Value': value,
+      };
+}
+
+class PaymentDetailsCryptogramRSA {
+  String value;
+
+  PaymentDetailsCryptogramRSA({
+    required this.value,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'Value': value,
+      };
 }
 
 class PaymentDetailsToken {
   String type;
   String? payToken;
 
-  PaymentDetailsToken({required this.type, required this.payToken});
+  PaymentDetailsToken({
+    required this.type,
+    required this.payToken,
+  });
 
-  Map<String, dynamic> toJson() =>
-      {'Type': type, 'PayToken': payToken ?? ''};
+  Map<String, dynamic> toJson() => {
+        'Type': type,
+        'PayToken': payToken ?? '',
+      };
 }
 
-enum PaymentMethod { cryptogram, qr, token }
+enum PaymentMethod {
+  cryptogram,
+  qr,
+  token,
+  sberPay,
+  externalForm,
+  cryptogramRSA
+}
 
 class ExtraData {
   String? returnUrl;
@@ -165,7 +231,6 @@ class ExtraData {
         if (userAgent != null) "UserAgent": userAgent,
         if (acceptHeader != null) "acceptHeader": acceptHeader,
         if (javaEnabled != null) "JavaEnabled": javaEnabled,
-        if (javaScriptEnabled != null)
-          "javaScriptEnabled": javaScriptEnabled,
+        if (javaScriptEnabled != null) "javaScriptEnabled": javaScriptEnabled,
       };
 }
